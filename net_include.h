@@ -13,3 +13,6 @@
 #include <netdb.h>
 
 #include <errno.h>
+
+#define MAX_MESS_LEN 1300
+#define PACKET_BURST_SIZE 50

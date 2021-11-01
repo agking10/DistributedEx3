@@ -3,13 +3,10 @@ CXX=g++
 
 CFLAGS = -g -c -Wall -pedantic
 CPPFLAGS = -std=c++17
-INCLUDE_FLAGS = -I. -I/include
-SP_LIBRARY = libspread-core.a libspread-util.a
+SP_LIBRARY=/home/cs417/exercises/ex3/libspread-core.a /home/cs417/exercises/ex3/libspread-util.a
+MCAST_OBJ = machine.o mcast.o
 
-MCAST_OBJ = 
-
-all: test mcast
-
+all: mcast
 
 mcast: $(MCAST_OBJ)
 		$(CXX) -o mcast $(MCAST_OBJ) -ldl $(SP_LIBRARY)
@@ -19,10 +16,10 @@ clean:
 	rm mcast
 
 %.o:    %.c
-	$(CC) $(CFLAGS) $(INCLUDE_FLAGS) $*.c
+	$(CC) $(CFLAGS) $*.c
 
 %.o:	%.cpp
-	$(CXX)  $(CFLAGS) $(INCLUDE_FLAGS) $*.cpp
+	$(CXX)  $(CFLAGS) $*.cpp
 
 %.o:	%.hpp
-	$(CXX) $(CPPFLAGS) $(CFLAGS) $(INCLUDE_FLAGS) $*.hpp
+	$(CXX) $(CPPFLAGS) $(CFLAGS) $*.hpp
