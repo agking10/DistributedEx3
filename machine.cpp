@@ -3,30 +3,32 @@
 
 #define MESS_BUF_LEN 10000
 
-Machine::Machine(int n_packets, int machine_index, int n_machines) : 
-    n_packets_to_send_(n_packets),
-    id_(machine_index),
-    n_machines_(n_machines),
-    n_finished_(0) {
-    
+Machine::Machine(int n_packets, int machine_index, int n_machines) : n_packets_to_send_(n_packets),
+                                                                     id_(machine_index),
+                                                                     n_machines_(n_machines),
+                                                                     n_finished_(0)
+{
+
     finished_ = std::vector<bool>(n_machines, false);
     last_sent_ = 0;
 }
 
-void Machine::start() {
+void Machine::start()
+{
 
-    printf("Starting\n");
+   //printf("Starting\n");
 
     ret = SP_connect(spread_name_, user_, 0, 1, &Mbox_, private_group_);
-	if( ret != ACCEPT_SESSION ) 
-	{
-		printf("unable to join spread\n");
-		return;
-	 }
-	 printf("User: connected to %s with private group %s\n", spread_name_, group_);
-
-    join_and_wait ();
-    start_protocol ();
+    if (ret != ACCEPT_SESSION)
+    {
+       //printf("unable to join spread\n");
+        return;
+    }
+   //printf("User: connected to %s with private group %s\n", spread_name_, group_);
+    std::string fname = std::to_string(id_) + ".txt";
+    fd_ = fopen(fname.c_str(), "w");
+    join_and_wait();
+    start_protocol();
 }
 
 void Machine::join_and_wait()
@@ -48,84 +50,141 @@ void Machine::receive_membership_message()
     int num_groups;
     int16 mess_type;
     int endian_mismatch;
-    membership_info  memb_info;
-    
+    membership_info memb_info;
+
     ret = SP_receive(Mbox_, &service_type, sender, 100, &num_groups, target_groups,
-        &mess_type, &endian_mismatch, sizeof(mess), mess);
+                     &mess_type, &endian_mismatch, sizeof(mess), mess);
     if (ret < 0)
     {
-        if ( (ret == GROUPS_TOO_SHORT) || (ret == BUFFER_TOO_SHORT) ) 
+        if ((ret == GROUPS_TOO_SHORT) || (ret == BUFFER_TOO_SHORT))
         {
             service_type = DROP_RECV;
-            printf("\n========Buffers or Groups too Short=======\n");
-            ret = SP_receive(Mbox_, &service_type, sender, n_machines_, &num_groups, target_groups, 
-                                &mess_type, &endian_mismatch, sizeof(mess), mess);
+           //printf("\n========Buffers or Groups too Short=======\n");
+            ret = SP_receive(Mbox_, &service_type, sender, n_machines_, &num_groups, target_groups,
+                             &mess_type, &endian_mismatch, sizeof(mess), mess);
         }
         if (ret < 0)
         {
             SP_error(ret);
-            printf("\n============================\n");
-            printf("\nBye.\n");
+           //printf("\n============================\n");
+           //printf("\nBye.\n");
         }
         exit(0);
     }
-    if ( Is_membership_mess(service_type))
+    if (Is_membership_mess(service_type))
     {
         ret = SP_get_memb_info(mess, service_type, &memb_info);
-        if (ret < 0) 
+        if (ret < 0)
         {
-            printf("BUG: membership message does not have valid body\n");
-            SP_error( ret );
-            exit( 1 );
+           //printf("BUG: membership message does not have valid body\n");
+            SP_error(ret);
+            exit(1);
         }
         if (Is_reg_memb_mess(service_type))
         {
-            printf("Received REGULAR membership for group %s with %d members, where I am member %d:\n",
-				sender, num_groups, mess_type );
+           //printf("Received REGULAR membership for group %s with %d members, where I am member %d:\n",
+           //        sender, num_groups, mess_type);
             n_joined_ = num_groups;
         }
-    }    
+    }
 }
 
 void Machine::start_protocol()
 {
-    printf("Started!");
+   //printf("Started!");
+    fflush(0);
+    bool got_own_ = false;
+    bool placeholder = true;
+    if (n_packets_to_send_ == 0) {
+        finished_[id_] = true;
+        send_packet(-1);
+    }
     while (n_finished_ < n_machines_)
     {
-        send_new_packet();
-        for (int i = n_machines_ - n_finished_; i >= 0; i--)
+        if (!finished_[id_])
         {
-            receive_packet();
+            send_packet_burst();
+            while (!got_own_)
+            {
+                got_own_ = receive_packet();
+            }
         }
+        placeholder = receive_packet();
     }
+}
+
+bool Machine::receive_packet()
+{
+    int ret;
+    //char mess[sizeof(message_buf_)];
+    char sender[MAX_GROUP_NAME];
+    char target_groups[MAX_GROUPS][MAX_GROUP_NAME];
+    int service_type;
+    int num_groups;
+    int16 mess_type;
+    int endian_mismatch;
+   //printf("stuck in receive_packet\n");
+    fflush(0);
+    ret = SP_receive(Mbox_, &service_type, sender, n_machines_, &num_groups, target_groups,
+                     &mess_type, &endian_mismatch, sizeof(message_buf_), reinterpret_cast<char *>(&message_buf_));
+   //printf("received\n");
+    fflush(0);
+    int sender_process = message_buf_.process_index;
+    int msg_index = message_buf_.message_index;
+    deliver_packet(message_buf_);
+    if (msg_index == -1)
+    {
+        finished_[sender_process] = true;
+        n_finished_++;
+    }
+    if (sender_process == id_ && msg_index == last_sent_)
+        return true;
+    return false;
 }
 
 void Machine::join_group()
 {
-    int ret = SP_join (Mbox_, group_);
-    if (ret < 0) SP_error(ret);
+    int ret = SP_join(Mbox_, group_);
+    if (ret < 0)
+        SP_error(ret);
 }
 
-void Machine::send_packet_burst() {
-    for (int i = last_sent_ + 1; i < last_sent_ + PACKET_BURST_SIZE; i++) {
-        send_packet(i);
-    }
-}
-
-void Machine::send_new_packet()
+void Machine::send_packet_burst()
 {
-    if 
+    for (int i = last_sent_ + 1; i < last_sent_ + PACKET_BURST_SIZE; i++)
+    {
+        send_packet(i);
+        if (i == n_packets_to_send_) {
+            send_packet(-1);
+            last_sent_ = -1;
+            return;
+        }
+    }
+    last_sent_ = last_sent_ + PACKET_BURST_SIZE - 1;
 }
 
-void Machine::send_packet(int index) {
-    Message& packet = message_buf_;
+// void Machine::send_new_packet()
+// {
+//     if
+// }
+
+void Machine::send_packet(int index)
+{
+    Message &packet = message_buf_;
     packet.message_index = index;
     packet.process_index = id_;
     packet.magic_number = generate_magic_number();
     SP_multicast(Mbox_, AGREED_MESS, group_, 2, sizeof(packet), reinterpret_cast<const char *>(&packet));
+   //printf("sending packet %d\n", index);
+    fflush(0);
 }
 
 uint32_t Machine::generate_magic_number()
 {
     return rng_dst_(generator_);
+}
+
+void Machine::deliver_packet(Message msg)
+{
+    fprintf(fd_, "%2d, %8d, %8d\n", msg.process_index, msg.process_index, msg.magic_number);
 }

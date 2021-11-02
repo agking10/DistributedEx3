@@ -28,8 +28,11 @@ private:
     void send_packet_burst();
     void send_packet(int index);
     uint32_t generate_magic_number();
+    bool receive_packet();
+    void deliver_packet(Message);
     std::vector<bool> finished_;
     mailbox Mbox_;
+    FILE * fd_;
     int n_joined_;
     int n_packets_to_send_;
     int id_;
