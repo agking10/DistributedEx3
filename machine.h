@@ -7,7 +7,7 @@
 #include "sp.h"
 
 #define MAX_GROUPS 30
-
+#define PACKET_BURST_SIZE 50
 class Machine
 {
     using RNG = std::mt19937;
@@ -38,6 +38,7 @@ private:
     int id_;
     int n_machines_;
     int n_finished_;
+    bool done_sending_;
     int last_sent_;
     int ret;
     char group_ [MAX_GROUP_NAME]= "ypeng22_group";

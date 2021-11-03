@@ -1,16 +1,20 @@
 #include "machine.h"
 #include "sp.h"
 
-#define MESS_BUF_LEN 10000
+#define MESS_BUF_LEN 100000
 
-Machine::Machine(int n_packets, int machine_index, int n_machines) : n_packets_to_send_(n_packets),
-                                                                     id_(machine_index),
-                                                                     n_machines_(n_machines),
-                                                                     n_finished_(0)
+Machine::Machine(int n_packets, 
+    int machine_index, 
+    int n_machines) 
+    : n_packets_to_send_(n_packets),
+    id_(machine_index),
+    n_machines_(n_machines),
+    n_finished_(0)
 {
 
     finished_ = std::vector<bool>(n_machines, false);
     last_sent_ = 0;
+    done_sending_ = false;
 }
 
 void Machine::start()
@@ -92,16 +96,15 @@ void Machine::receive_membership_message()
 void Machine::start_protocol()
 {
    //printf("Started!");
-    fflush(0);
+    //fflush(0);
     bool got_own_ = false;
-    bool placeholder = true;
     if (n_packets_to_send_ == 0) {
-        finished_[id_] = true;
+        done_sending_ = true;
         send_packet(-1);
     }
     while (n_finished_ < n_machines_)
     {
-        if (!finished_[id_])
+        if (!done_sending_)
         {
             send_packet_burst();
             while (!got_own_)
@@ -109,8 +112,12 @@ void Machine::start_protocol()
                 got_own_ = receive_packet();
             }
         }
-        placeholder = receive_packet();
+        else 
+        {
+            receive_packet();
+        }
     }
+    printf("All finished!\n");
 }
 
 bool Machine::receive_packet()
@@ -123,18 +130,19 @@ bool Machine::receive_packet()
     int num_groups;
     int16 mess_type;
     int endian_mismatch;
-   //printf("stuck in receive_packet\n");
-    fflush(0);
+    //printf("stuck in receive_packet\n");
+    //fflush(0);
     ret = SP_receive(Mbox_, &service_type, sender, n_machines_, &num_groups, target_groups,
                      &mess_type, &endian_mismatch, sizeof(message_buf_), reinterpret_cast<char *>(&message_buf_));
-   //printf("received\n");
-    fflush(0);
+    //printf("received\n");
+    //fflush(0);
     int sender_process = message_buf_.process_index;
     int msg_index = message_buf_.message_index;
     deliver_packet(message_buf_);
     if (msg_index == -1)
     {
-        finished_[sender_process] = true;
+        finished_[sender_process - 1] = true;
+        printf("Sender %d finished\n", sender_process);
         n_finished_++;
     }
     if (sender_process == id_ && msg_index == last_sent_)
@@ -153,20 +161,21 @@ void Machine::send_packet_burst()
 {
     for (int i = last_sent_ + 1; i < last_sent_ + PACKET_BURST_SIZE; i++)
     {
-        send_packet(i);
         if (i == n_packets_to_send_) {
             send_packet(-1);
             last_sent_ = -1;
+            done_sending_ = true;
             return;
         }
+        if (i % 1000 == 0)
+        {
+            printf("Sent packet %d\n", i);
+        }
+        send_packet(i);
     }
     last_sent_ = last_sent_ + PACKET_BURST_SIZE - 1;
 }
 
-// void Machine::send_new_packet()
-// {
-//     if
-// }
 
 void Machine::send_packet(int index)
 {
@@ -174,9 +183,9 @@ void Machine::send_packet(int index)
     packet.message_index = index;
     packet.process_index = id_;
     packet.magic_number = generate_magic_number();
-    SP_multicast(Mbox_, AGREED_MESS, group_, 2, sizeof(packet), reinterpret_cast<const char *>(&packet));
-   //printf("sending packet %d\n", index);
-    fflush(0);
+    SP_multicast(Mbox_, SAFE_MESS, group_, 2, sizeof(packet), reinterpret_cast<const char *>(&packet));
+    //printf("sending packet %d\n", index);
+    // fflush(0);
 }
 
 uint32_t Machine::generate_magic_number()
