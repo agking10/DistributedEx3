@@ -86,8 +86,6 @@ void Machine::receive_membership_message()
         }
         if (Is_reg_memb_mess(service_type))
         {
-           //printf("Received REGULAR membership for group %s with %d members, where I am member %d:\n",
-           //        sender, num_groups, mess_type);
             n_joined_ = num_groups;
         }
     }
@@ -160,7 +158,7 @@ void Machine::send_packet_burst()
             done_sending_ = true;
             return;
         }
-        if (i % 1000 == 0)
+        if (i % 10000 == 0)
         {
             printf("Sent packet %d\n", i);
         }
