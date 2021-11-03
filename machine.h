@@ -7,7 +7,7 @@
 #include "sp.h"
 
 #define MAX_GROUPS 30
-#define PACKET_BURST_SIZE 50
+#define PACKET_BURST_SIZE 300
 class Machine
 {
     using RNG = std::mt19937;

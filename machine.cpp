@@ -95,10 +95,8 @@ void Machine::receive_membership_message()
 
 void Machine::start_protocol()
 {
-   //printf("Started!");
-    //fflush(0);
-    bool got_own_ = false;
     if (n_packets_to_send_ == 0) {
+        last_sent_ = -1;
         done_sending_ = true;
         send_packet(-1);
     }
@@ -107,10 +105,7 @@ void Machine::start_protocol()
         if (!done_sending_)
         {
             send_packet_burst();
-            while (!got_own_)
-            {
-                got_own_ = receive_packet();
-            }
+            while (!receive_packet()) continue;
         }
         else 
         {
@@ -123,17 +118,15 @@ void Machine::start_protocol()
 bool Machine::receive_packet()
 {
     int ret;
-    //char mess[sizeof(message_buf_)];
     char sender[MAX_GROUP_NAME];
     char target_groups[MAX_GROUPS][MAX_GROUP_NAME];
     int service_type;
     int num_groups;
     int16 mess_type;
     int endian_mismatch;
-    //printf("stuck in receive_packet\n");
-    //fflush(0);
     ret = SP_receive(Mbox_, &service_type, sender, n_machines_, &num_groups, target_groups,
                      &mess_type, &endian_mismatch, sizeof(message_buf_), reinterpret_cast<char *>(&message_buf_));
+    if (ret < 0) SP_error(ret);
     //printf("received\n");
     //fflush(0);
     int sender_process = message_buf_.process_index;
