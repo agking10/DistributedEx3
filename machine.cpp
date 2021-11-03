@@ -3,13 +3,13 @@
 
 #define MESS_BUF_LEN 100000
 
-Machine::Machine(int n_packets, 
-    int machine_index, 
-    int n_machines) 
+Machine::Machine(int n_packets,
+                 int machine_index,
+                 int n_machines)
     : n_packets_to_send_(n_packets),
-    id_(machine_index),
-    n_machines_(n_machines),
-    n_finished_(0)
+      id_(machine_index),
+      n_machines_(n_machines),
+      n_finished_(0)
 {
 
     finished_ = std::vector<bool>(n_machines, false);
@@ -20,17 +20,21 @@ Machine::Machine(int n_packets,
 void Machine::start()
 {
 
-   //printf("Starting\n");
+    //printf("Starting\n");
 
     ret = SP_connect(spread_name_, user_, 0, 1, &Mbox_, private_group_);
     if (ret != ACCEPT_SESSION)
     {
-       //printf("unable to join spread\n");
+        //printf("unable to join spread\n");
         return;
     }
-   //printf("User: connected to %s with private group %s\n", spread_name_, group_);
-    std::string fname = std::to_string(id_) + ".txt";
+    //printf("User: connected to %s with private group %s\n", spread_name_, group_);
+    //fflush(0);
+    std::string fname =  "../../../../tmp/" + std::to_string(id_) + "y.txt"; //"../../../../tmp/" +
     fd_ = fopen(fname.c_str(), "w");
+    //printf("here\n");
+    fflush(0);
+
     join_and_wait();
     start_protocol();
 }
@@ -63,15 +67,15 @@ void Machine::receive_membership_message()
         if ((ret == GROUPS_TOO_SHORT) || (ret == BUFFER_TOO_SHORT))
         {
             service_type = DROP_RECV;
-           //printf("\n========Buffers or Groups too Short=======\n");
+            //printf("\n========Buffers or Groups too Short=======\n");
             ret = SP_receive(Mbox_, &service_type, sender, n_machines_, &num_groups, target_groups,
                              &mess_type, &endian_mismatch, sizeof(mess), mess);
         }
         if (ret < 0)
         {
             SP_error(ret);
-           //printf("\n============================\n");
-           //printf("\nBye.\n");
+            //printf("\n============================\n");
+            //printf("\nBye.\n");
         }
         exit(0);
     }
@@ -80,7 +84,7 @@ void Machine::receive_membership_message()
         ret = SP_get_memb_info(mess, service_type, &memb_info);
         if (ret < 0)
         {
-           //printf("BUG: membership message does not have valid body\n");
+            //printf("BUG: membership message does not have valid body\n");
             SP_error(ret);
             exit(1);
         }
@@ -93,7 +97,9 @@ void Machine::receive_membership_message()
 
 void Machine::start_protocol()
 {
-    if (n_packets_to_send_ == 0) {
+    auto start_time = std::chrono::high_resolution_clock::now();
+    if (n_packets_to_send_ == 0)
+    {
         last_sent_ = -1;
         done_sending_ = true;
         send_packet(-1);
@@ -103,13 +109,19 @@ void Machine::start_protocol()
         if (!done_sending_)
         {
             send_packet_burst();
-            while (!receive_packet()) continue;
+            while (!receive_packet())
+                continue;
         }
-        else 
+        else
         {
             receive_packet();
         }
     }
+    auto stop = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<
+        std::chrono::microseconds>(stop - start_time);
+    std::cout << "Duration: " << duration.count() << " us" << std::endl;
+    fclose(fd_);
     printf("All finished!\n");
 }
 
@@ -124,7 +136,10 @@ bool Machine::receive_packet()
     int endian_mismatch;
     ret = SP_receive(Mbox_, &service_type, sender, n_machines_, &num_groups, target_groups,
                      &mess_type, &endian_mismatch, sizeof(message_buf_), reinterpret_cast<char *>(&message_buf_));
-    if (ret < 0) SP_error(ret);
+    if (ret < 0) {
+        SP_error(ret);
+        exit(1);
+    }
     //printf("received\n");
     //fflush(0);
     int sender_process = message_buf_.process_index;
@@ -152,7 +167,8 @@ void Machine::send_packet_burst()
 {
     for (int i = last_sent_ + 1; i < last_sent_ + PACKET_BURST_SIZE; i++)
     {
-        if (i == n_packets_to_send_) {
+        if (i == n_packets_to_send_)
+        {
             send_packet(-1);
             last_sent_ = -1;
             done_sending_ = true;
@@ -166,7 +182,6 @@ void Machine::send_packet_burst()
     }
     last_sent_ = last_sent_ + PACKET_BURST_SIZE - 1;
 }
-
 
 void Machine::send_packet(int index)
 {

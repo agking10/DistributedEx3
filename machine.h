@@ -4,10 +4,11 @@
 #include "messages.h"
 #include <random>
 #include <vector>
+#include <iostream>
 #include "sp.h"
-
+#include <chrono>
 #define MAX_GROUPS 30
-#define PACKET_BURST_SIZE 300
+#define PACKET_BURST_SIZE 100
 class Machine
 {
     using RNG = std::mt19937;
