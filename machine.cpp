@@ -1,5 +1,7 @@
 #include "machine.h"
 #include "sp.h"
+#include <iostream>
+#include <chrono>
 
 #define MESS_BUF_LEN 100000
 
@@ -29,7 +31,7 @@ void Machine::start()
         return;
     }
    //printf("User: connected to %s with private group %s\n", spread_name_, group_);
-    std::string fname = std::to_string(id_) + ".txt";
+    std::string fname = "/tmp/" + std::to_string(id_) + ".txt";
     fd_ = fopen(fname.c_str(), "w");
     join_and_wait();
     start_protocol();
@@ -93,6 +95,8 @@ void Machine::receive_membership_message()
 
 void Machine::start_protocol()
 {
+    printf("Started!\n");
+    auto start = std::chrono::high_resolution_clock::now();
     if (n_packets_to_send_ == 0) {
         last_sent_ = -1;
         done_sending_ = true;
@@ -110,7 +114,11 @@ void Machine::start_protocol()
             receive_packet();
         }
     }
-    printf("All finished!\n");
+    auto stop = std::chrono::high_resolution_clock::now();
+    fclose(fd_);
+    auto duration = std::chrono::duration_cast<
+        std::chrono::microseconds>(stop - start);
+    std::cout << "Duration: " << duration.count() << " us." << std::endl;
 }
 
 bool Machine::receive_packet()
@@ -174,7 +182,7 @@ void Machine::send_packet(int index)
     packet.message_index = index;
     packet.process_index = id_;
     packet.magic_number = generate_magic_number();
-    SP_multicast(Mbox_, SAFE_MESS, group_, 2, sizeof(packet), reinterpret_cast<const char *>(&packet));
+    SP_multicast(Mbox_, AGREED_MESS, group_, 2, sizeof(packet), reinterpret_cast<const char *>(&packet));
     //printf("sending packet %d\n", index);
     // fflush(0);
 }

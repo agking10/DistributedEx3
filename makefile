@@ -1,10 +1,15 @@
 CC=gcc
 CXX=g++
 
-CFLAGS = -g -c -Wall -pedantic
+ifndef window
+window = 75
+endif
+
+CFLAGS = -g -c -Wall -pedantic -DPACKET_BURST_SIZE=$(window)
 CPPFLAGS = -std=c++17
 SP_LIBRARY=/home/cs417/exercises/ex3/libspread-core.a /home/cs417/exercises/ex3/libspread-util.a
 MCAST_OBJ = machine.o mcast.o
+
 
 all: mcast
 
